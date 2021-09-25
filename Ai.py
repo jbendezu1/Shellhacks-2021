@@ -17,6 +17,7 @@ statsA = 0
 statsB = 0
 statsC = 0
 statsD = 0
+health = 100
 # basically what we want to do is moveA,B,C,D/totalmovesUsed = stats for each move, and from there we will use the computer to compare the stats
 # to decide what move to use to counter them or if they should use a health effect
 # so once we get the stats for the total used we can start to see patterns in certain play styles that will allow the bot to counter them
@@ -68,10 +69,11 @@ elif moveD == 1:
     RowCountD = RowCountD + 1
 
 # move chooser math
-if statsA > statsB && statsA > statsC && statsA > statsD:
-    if health < 50
+if statsA > statsB and statsA > statsC and statsA > statsD:
+    if health < 50:
+        #do this
         # use healing item if there are any
     # otherwise
     # pick the counter move to Move A
     # this is a place holder until i figure out what to use to call move A
-    moveA = 1
+        moveA = 1
