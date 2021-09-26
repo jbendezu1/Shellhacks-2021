@@ -6,8 +6,6 @@ const util = require('util');
 
 app.set('view engine','pug');
 app.use(express.urlencoded({ extended: true }));
-app.use('/static', express.static('public'));
-app.use('/Images', express.static('files'));
 
 /*-------Canvas Library----------*/
 const Canvas = require('canvas');
@@ -17,7 +15,194 @@ const Sim = require('pokemon-showdown');
 const {Dex} = require('pokemon-showdown');
 
 /*---Create stream to read and write pokemon showdown information-----*/
-let stream = new Sim.BattleStream();
+
+class battleStream{
+
+    constructor(){
+        this.stream = new Sim.BattleStream();
+
+        this.run = async()  => {
+        
+            let damage = {
+                challenger: {
+                    percent: 1,
+                    raw: 0
+                },
+                opponent: {
+                    percent: 1,
+                    raw: 0
+                }
+            };
+            let status = {challenger:null,opponent:null};
+            let percentFlag = false;
+            let trainer = "";
+        
+            for await (const output of this.stream) {
+                console.log("Ouput");
+                const outputArr = output.split("\n");
+        
+                // Read each line from the output
+                for await (const line of outputArr){
+                    const strings = line.split("|");
+                    strings.shift();// Shift out the empty string
+                    // console.log(strings);
+                    switch (strings[0]){
+                        case 'p1':
+        
+                            break;
+                        case 'p2':
+        
+                            break;
+                        case 'move':
+                            trainer = strings[1];
+                            let move = strings[2];
+        
+                            if (trainer.startsWith("p1a")) trainer = "Your";
+                            else
+                                trainer = "Your Opponent";
+                            
+                            message += `${trainer} ${strings[1].substring(5)} used ${move}!\n`;
+                            break;
+                        case '-supereffective':
+                            message += "It was super effective!\n";
+                            break;
+                        case '-resisted':
+                            message += "It wasn't very effective\n";
+                            break;
+                        case '-damage':
+                            trainer = strings[1];
+        
+                            if (percentFlag){
+                                switch(strings[3]){
+                                    case '[from] confusion':
+                                        message += "It hurt itself in confusion!\n";
+                                        break;
+                                    case undefined:
+                                        break;
+                                    case '[from] Leech Seed':
+                                        message += `${strings[1].substring(5)}'s health is sapped by ${strings[3].substring(7)}!\n`;
+                                        break;
+                                    default:
+                                        message += `It's hurt from ${strings[3].substring(7)}\n`;
+                                }
+                                if (trainer.startsWith('p1'))
+                                    damage.challenger.percent = strings[2];
+                                else
+                                    damage.opponent.percent = strings[2];
+                            }
+                            else{
+                                if (trainer.startsWith('p1'))
+                                    damage.challenger.raw = strings[2];
+                                else
+                                damage.opponent.raw = strings[2];
+                            }
+                            percentFlag = !percentFlag;
+                            break;
+                        case '-miss':
+                            message += `${strings[2].substring(5)} avoided the attack!\n`;
+                            break;
+                        case '-heal':
+                            trainer = strings[1];
+        
+                            if (percentFlag){
+                                if (trainer.startsWith('p1'))
+                                    damage.challenger.percent = strings[2];
+                                else
+                                    damage.opponent.percent = strings[2];
+                            }
+                            else{
+                                if (trainer.startsWith('p1'))
+                                    damage.challenger.raw = strings[2];
+                                else
+                                damage.opponent.raw = strings[2];
+                            }
+                            percentFlag = !percentFlag;
+                            break;
+                        case '-immune':
+                            trainer = strings[1];
+                            if (trainer.startsWith('p1'))
+                                trainer = "Your";
+                            else trainer = "Your Opponent";
+                            message += `It doesn't affect ${strings[1].substring(5)}.`;
+                            break;
+                        case '-status':
+                            message += `status${strings[1]} ${strings[2]}\n`;
+                            break;
+                        case '-start':
+                            switch(strings[2]){
+                                case 'move: Leech Seed':
+                                    message += `${strings[1].substring(5)} was seeded!\n`;
+                                    break;
+                                default:
+                                    message += `${strings[1].substring(5)} is now confused!\n`;
+                                    break;
+                            }
+                            break;
+                        case '-end':
+                            message += `The pokemon is no longer effected by ${strings[2]}\n`;
+                            break;
+                        case '-activate':
+                            switch(strings[2]){
+                                case 'confusion':
+                                    message +=  `${strings[1].substring(5)} is confused!\n`
+                                    break;
+                                case 'trapped':
+                                    message += `${strings[1].substring(5)} can no longer escape!\n`;
+                                    break;
+                                default:
+                                    message += `${strings[2]}\n`;
+                            }
+                            break;
+                        case '-crit':
+                            message += "A critical hit!\n";
+                            break;
+                        case '-fail':
+                            message += "But it failed!\n";
+                            break;
+                        // A volatile status has been inflicted on pokemon
+                        case '-start':
+                            message += "";
+                            break;
+                        case '-boost':
+                            message += `${strings[1].substring(5)}'s ${convert[strings[2]]} `;
+                            switch(strings[3]){
+                                case "0":
+                                    message += "cannot be raised!\n";
+                                    break;
+                                case "1":
+                                    message += "rose!\n";
+                                    break;
+                                case "2":
+                                    message += "sharply raised!\n";
+                                    break;
+                                case "3":
+                                    message += "durastically rose!\n";
+                                    break;
+                            }
+                            break;
+                        case 'poke':
+        
+                            break;
+                        // Start of a new turn
+                        case 'turn':
+                            await drawBattle(damage,status,message);
+                            // Reset message
+                            break;
+                        case 'faint':
+                            message += `${strings[1].substring(5)} fainted!\n`;
+                            break;
+                        case 'win':
+                            message += `${strings[1]} won!\n`;
+                            console.log(util.inspect(damage));
+                            await drawBattle(damage,status,message);
+                            break;
+                    }
+                }
+            }
+        };
+    }
+}
+let mainStream = null;
 
 let mon1 = null;
 let mon2 = null;
@@ -35,6 +220,8 @@ let message = "";
 
 // Display website when acessed
 app.get('/', function (req, res) {
+    mainStream = new battleStream();
+    mainStream.run();
     res.render('sample');
   })
 
@@ -58,18 +245,18 @@ app.post('/', async function (req, res) {
         opposingPokemon = await Canvas.loadImage('https://play.pokemonshowdown.com/sprites/gen5/'+mon2.nm+'.png');
         healthBar = await Canvas.loadImage('./images/healthbar.png');
 
-        stream.write(`>start {"formatid":"anythinggoes"}`);
-        stream.write(`>player p1 {"name":"Your","team":"${team1}"}`);
-        stream.write(`>player p2 {"name":"Your Opponent","team":"${team2}"}`);
-        stream.write(`>p1 team 1\n`);
-        stream.write(`>p2 team 1\n`);
-        console.log("Here");
-        res.render('other',{move1:moves[val][0],move2:moves[val][1],move3:moves[val][2],move4:moves[val][3], inputUrl: './Images/Battle2.png'});
+        mainStream.stream.write(`>start {"formatid":"anythinggoes"}`);
+        mainStream.stream.write(`>player p1 {"name":"Your","team":"${team1}"}`);
+        mainStream.stream.write(`>player p2 {"name":"Your Opponent","team":"${team2}"}`);
+        mainStream.stream.write(`>p1 team 1\n`);
+        mainStream.stream.write(`>p2 team 1\n`);
+        res.render('other',{move1:moves[val][0],move2:moves[val][1],move3:moves[val][2],move4:moves[val][3], inputUrl: './images/Battle2.png'});
     }
     else{
-        stream.write(`>p1 move ${parseInt(val)}`);
+        mainStream.stream.write(`>p1 move ${parseInt(val)}`);
         const AImove = await decideMove(val);
-        stream.write(`>p2 move ${AImove}`);
+        console.log(AImove);
+        mainStream.stream.write(`>p2 move ${AImove}`);
         console.log("message:"+message);
         res.render('other',{move1:moves[mon1.nm][0],move2:moves[mon1.nm][1],move3:moves[mon1.nm][2],move4:moves[mon1.nm][3],output: message,inputUrl: newImage});
         message = "";
@@ -77,186 +264,6 @@ app.post('/', async function (req, res) {
 })
 
 app.listen(port, ()=> console.log('The server running on Port ' +port));
-
-// Battle stream
-(async () => {
-
-    let damage = {
-        challenger: {
-            percent: 1,
-            raw: 0
-        },
-        opponent: {
-            percent: 1,
-            raw: 0
-        }
-    };
-    let status = {challenger:null,opponent:null};
-    let percentFlag = false;
-    let trainer = "";
-
-    for await (const output of stream) {
-        const outputArr = output.split("\n");
-
-        // Read each line from the output
-        for await (const line of outputArr){
-            const strings = line.split("|");
-            strings.shift();// Shift out the empty string
-            // console.log(strings);
-            switch (strings[0]){
-                case 'p1':
-
-                    break;
-                case 'p2':
-
-                    break;
-                case 'move':
-                    trainer = strings[1];
-                    let move = strings[2];
-
-                    if (trainer.startsWith("p1a")) trainer = "Your";
-                    else
-                        trainer = "Your Opponent";
-                    
-                    message += `${trainer} ${strings[1].substring(5)} used ${move}!\n`;
-                    break;
-                case '-supereffective':
-                    message += "It was super effective!\n";
-                    break;
-                case '-resisted':
-                    message += "It wasn't very effective\n";
-                    break;
-                case '-damage':
-                    trainer = strings[1];
-
-                    if (percentFlag){
-                        switch(strings[3]){
-                            case '[from] confusion':
-                                message += "It hurt itself in confusion!\n";
-                                break;
-                            case undefined:
-                                break;
-                            case '[from] Leech Seed':
-                                message += `${strings[1].substring(5)}'s health is sapped by ${strings[3].substring(7)}!\n`;
-                                break;
-                            default:
-                                message += `It's hurt from ${strings[3].substring(7)}\n`;
-                        }
-                        if (trainer.startsWith('p1'))
-                            damage.challenger.percent = strings[2];
-                        else
-                            damage.opponent.percent = strings[2];
-                    }
-                    else{
-                        if (trainer.startsWith('p1'))
-                            damage.challenger.raw = strings[2];
-                        else
-                        damage.opponent.raw = strings[2];
-                    }
-                    percentFlag = !percentFlag;
-                    break;
-                case '-miss':
-                    message += `${strings[2].substring(5)} avoided the attack!\n`;
-                    break;
-                case '-heal':
-                    trainer = strings[1];
-
-                    if (percentFlag){
-                        if (trainer.startsWith('p1'))
-                            damage.challenger.percent = strings[2];
-                        else
-                            damage.opponent.percent = strings[2];
-                    }
-                    else{
-                        if (trainer.startsWith('p1'))
-                            damage.challenger.raw = strings[2];
-                        else
-                        damage.opponent.raw = strings[2];
-                    }
-                    percentFlag = !percentFlag;
-                    break;
-                case '-immune':
-                    trainer = strings[1];
-                    if (trainer.startsWith('p1'))
-                        trainer = "Your";
-                    else trainer = "Your Opponent";
-                    message += `It doesn't affect ${strings[1].substring(5)}.`;
-                    break;
-                case '-status':
-                    message += `status${strings[1]} ${strings[2]}\n`;
-                    break;
-                case '-start':
-                    switch(strings[2]){
-                        case 'move: Leech Seed':
-                            message += `${strings[1].substring(5)} was seeded!\n`;
-                            break;
-                        default:
-                            message += `${strings[1].substring(5)} is now confused!\n`;
-                            break;
-                    }
-                    break;
-                case '-end':
-                    message += `The pokemon is no longer effected by ${strings[2]}\n`;
-                    break;
-                case '-activate':
-                    switch(strings[2]){
-                        case 'confusion':
-                            message +=  `${strings[1].substring(5)} is confused!\n`
-                            break;
-                        case 'trapped':
-                            message += `${strings[1].substring(5)} can no longer escape!\n`;
-                            break;
-                        default:
-                            message += `${strings[2]}\n`;
-                    }
-                    break;
-                case '-crit':
-                    message += "A critical hit!\n";
-                    break;
-                case '-fail':
-                    message += "But it failed!\n";
-                    break;
-                // A volatile status has been inflicted on pokemon
-                case '-start':
-                    message += "";
-                    break;
-                case '-boost':
-                    message += `${strings[1].substring(5)}'s ${convert[strings[2]]} `;
-                    switch(strings[3]){
-                        case "0":
-                            message += "cannot be raised!\n";
-                            break;
-                        case "1":
-                            message += "rose!\n";
-                            break;
-                        case "2":
-                            message += "sharply raised!\n";
-                            break;
-                        case "3":
-                            message += "durastically rose!\n";
-                            break;
-                    }
-                    break;
-                case 'poke':
-
-                    break;
-                // Start of a new turn
-                case 'turn':
-                    await drawBattle(damage,status,message);
-                    // Reset message
-                    break;
-                case 'faint':
-                    message += `${strings[1].substring(5)} fainted!\n`;
-                    break;
-                case 'win':
-                    message += `${strings[1]} won!\n`;
-                    console.log(util.inspect(damage));
-                    await drawBattle(damage,status,message);
-                    break;
-            }
-        }
-    }
-})();
 
 // Create user's pokemon and store it globally
 class pokemon {
@@ -304,7 +311,7 @@ let drawBattle = async(damage,status)=>{
     const ctx = canvas.getContext('2d');
     
     // Since the image takes time to load, you should await it
-    const background = await Canvas.loadImage('./Images/battle2.png');
+    const background = await Canvas.loadImage('./images/battle2.png');
     
     // This uses the canvas dimensions to stretch the image onto the entire canvas
     ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
@@ -563,14 +570,17 @@ const moves = {
 // It is up to the AI to store info to learn
 async function decideMove(move){
     move = Dex.moves.get(move);
+    type = dexEntry1.types[0];
+    let ret = 1;
+ 
     // using spawn instead of exec, prefer a stream over a buffer to avoid maxBuffer issue
     var spawn = require("child_process").spawn;
-    var process = await spawn('python', ["../../AI.py",move]);
+    var process = await spawn('python', ["../../AI.py",move,type]);
     process.stdout.on('data', (data)=>{
-        stream.write(`>p2 move ${parseInt(data.toString())}`);
-        return resizeBy.send(data.toString())
+        ret = data.toString();
+        return ret;
     })
-    return 1;
+    return ret;
 }
 
 // Create input team from pokemon class
