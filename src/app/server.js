@@ -571,7 +571,7 @@ async function decideMove(move){
  
     // using spawn instead of exec, prefer a stream over a buffer to avoid maxBuffer issue
     var spawn = require("child_process").spawn;
-    var process = await spawn('python', ["../../AI.py",move,type]);
+    var process = await spawn('python', ["../../Ai.py",move,type]);
     process.stdout.on('data', (data)=>{
         ret = data.toString();
         return ret;
