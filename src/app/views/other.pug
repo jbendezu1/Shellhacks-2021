@@ -1,0 +1,17 @@
+doctype html 
+
+html(lang="en")
+    head
+        meta(charset="utf.8")
+        title= title
+    body 
+        h1 Welcome to Pokemon AI Simulator!
+        img(src= inputUrl, alt="Display")
+        h3 Choose a move!
+
+        form(action="http://localhost:3000" method="post") 
+            input(type='submit' name= '1' value= move1)
+            input(type='submit' name= '2' value= move2)
+            input(type='submit' name= '3' value= move3)
+            input(type='submit' name= '4' value= move4)
+        h2= output
