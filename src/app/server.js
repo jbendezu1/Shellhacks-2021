@@ -20,7 +20,7 @@ class battleStream{
 
     constructor(){
         this.stream = new Sim.BattleStream();
-
+        this.message = "";
         this.run = async()  => {
         
             let damage = {
@@ -38,14 +38,13 @@ class battleStream{
             let trainer = "";
         
             for await (const output of this.stream) {
-                console.log("Ouput");
                 const outputArr = output.split("\n");
         
                 // Read each line from the output
                 for await (const line of outputArr){
                     const strings = line.split("|");
                     strings.shift();// Shift out the empty string
-                    // console.log(strings);
+                    console.log(strings);
                     switch (strings[0]){
                         case 'p1':
         
@@ -57,17 +56,17 @@ class battleStream{
                             trainer = strings[1];
                             let move = strings[2];
         
-                            if (trainer.startsWith("p1a")) trainer = "Your";
+                            if (trainer.startsWith("p1a")) trainer = "You";
                             else
                                 trainer = "Your Opponent";
                             
-                            message += `${trainer} ${strings[1].substring(5)} used ${move}!\n`;
+                            this.message += `${trainer} used ${move}!\n`;
                             break;
                         case '-supereffective':
-                            message += "It was super effective!\n";
+                            this.message += "It was super effective!\n";
                             break;
                         case '-resisted':
-                            message += "It wasn't very effective\n";
+                            this.message += "It wasn't very effective\n";
                             break;
                         case '-damage':
                             trainer = strings[1];
@@ -75,15 +74,15 @@ class battleStream{
                             if (percentFlag){
                                 switch(strings[3]){
                                     case '[from] confusion':
-                                        message += "It hurt itself in confusion!\n";
+                                        this.message += "It hurt itself in confusion!\n";
                                         break;
                                     case undefined:
                                         break;
                                     case '[from] Leech Seed':
-                                        message += `${strings[1].substring(5)}'s health is sapped by ${strings[3].substring(7)}!\n`;
+                                        this.message += `${strings[1].substring(5)}'s health is sapped by ${strings[3].substring(7)}!\n`;
                                         break;
                                     default:
-                                        message += `It's hurt from ${strings[3].substring(7)}\n`;
+                                        this.message += `It's hurt from ${strings[3].substring(7)}\n`;
                                 }
                                 if (trainer.startsWith('p1'))
                                     damage.challenger.percent = strings[2];
@@ -99,7 +98,7 @@ class battleStream{
                             percentFlag = !percentFlag;
                             break;
                         case '-miss':
-                            message += `${strings[2].substring(5)} avoided the attack!\n`;
+                            this.message += `${strings[2].substring(5)} avoided the attack!\n`;
                             break;
                         case '-heal':
                             trainer = strings[1];
@@ -121,62 +120,66 @@ class battleStream{
                         case '-immune':
                             trainer = strings[1];
                             if (trainer.startsWith('p1'))
-                                trainer = "Your";
+                                trainer = "You";
                             else trainer = "Your Opponent";
-                            message += `It doesn't affect ${strings[1].substring(5)}.`;
+
+                            this.message += `It doesn't affect ${trainer}.`;
                             break;
                         case '-status':
-                            message += `status${strings[1]} ${strings[2]}\n`;
+                            this.message += `status${strings[1]} ${strings[2]}\n`;
                             break;
                         case '-start':
                             switch(strings[2]){
                                 case 'move: Leech Seed':
-                                    message += `${strings[1].substring(5)} was seeded!\n`;
+                                    this.message += `${strings[1].substring(5)} was seeded!\n`;
                                     break;
                                 default:
-                                    message += `${strings[1].substring(5)} is now confused!\n`;
+                                    this.message += `${strings[1].substring(5)} is now confused!\n`;
                                     break;
                             }
                             break;
                         case '-end':
-                            message += `The pokemon is no longer effected by ${strings[2]}\n`;
+                            this.message += `The pokemon is no longer effected by ${strings[2]}\n`;
                             break;
                         case '-activate':
                             switch(strings[2]){
                                 case 'confusion':
-                                    message +=  `${strings[1].substring(5)} is confused!\n`
+                                    this.message +=  `${strings[1].substring(5)} is confused!\n`
                                     break;
                                 case 'trapped':
-                                    message += `${strings[1].substring(5)} can no longer escape!\n`;
+                                    this.message += `${strings[1].substring(5)} can no longer escape!\n`;
+                                    break;
+                                case 'move: Protect':
+                                    this.message += `${strings[1].substring(5)} protected itself!\n`;
                                     break;
                                 default:
-                                    message += `${strings[2]}\n`;
+                                    this.message += `${strings[2]}\n`;
                             }
                             break;
                         case '-crit':
-                            message += "A critical hit!\n";
+                            this.message += "A critical hit!\n";
                             break;
                         case '-fail':
-                            message += "But it failed!\n";
+                            this.message += "But it failed!\n";
                             break;
                         // A volatile status has been inflicted on pokemon
                         case '-start':
-                            message += "";
+                            this.message += "";
                             break;
                         case '-boost':
-                            message += `${strings[1].substring(5)}'s ${convert[strings[2]]} `;
+                            this.message += `${strings[1].substring(5)}'s ${convert[strings[2]]} `;
                             switch(strings[3]){
                                 case "0":
-                                    message += "cannot be raised!\n";
+                                    this.message += "cannot be raised!\n";
                                     break;
                                 case "1":
-                                    message += "rose!\n";
+                                    this.message += "rose!\n";
                                     break;
                                 case "2":
-                                    message += "sharply raised!\n";
+                                    this.message += "sharply raised!\n";
                                     break;
                                 case "3":
-                                    message += "durastically rose!\n";
+                                    this.message += "durastically rose!\n";
                                     break;
                             }
                             break;
@@ -185,21 +188,26 @@ class battleStream{
                             break;
                         // Start of a new turn
                         case 'turn':
-                            await drawBattle(damage,status,message);
+                            await drawBattle(damage,status,this.message);
                             // Reset message
                             break;
                         case 'faint':
-                            message += `${strings[1].substring(5)} fainted!\n`;
+                            this.message += `${strings[1].substring(5)} fainted!\n`;
                             break;
                         case 'win':
-                            message += `${strings[1]} won!\n`;
-                            console.log(util.inspect(damage));
-                            await drawBattle(damage,status,message);
+                            this.message += `${strings[1]} won!\n`;
+                            await drawBattle(damage,status,this.message);
                             break;
                     }
                 }
             }
         };
+    }
+
+    getOutput = function(){
+        let a = this.message;
+        this.message = "";
+        return a;
     }
 }
 let mainStream = null;
@@ -209,16 +217,12 @@ let mon2 = null;
 let dexEntry1 = null;
 let dexEntry2 = null;
 
-/*---Load images for canvas---*/
 let mainPokemon   =  null;
-let moveIndex1 = 0;
-let moveIndex2 = 0;
 let opposingPokemon = null;
 let healthBar = null;
 let newImage = "";
-let message = "";
 
-// Display website when acessed
+// Display website when accessed
 app.get('/', function (req, res) {
     mainStream = new battleStream();
     mainStream.run();
@@ -228,15 +232,15 @@ app.get('/', function (req, res) {
 // Respond with file when POST request is made to home page
 app.post('/', async function (req, res) {
     let val = Object.keys(req.body)[0];
-
     // If user sent us a pokemon name then start a battle
-    if (val == "bulbasaur" || val == "squirtle" || val == "charmander"){
-        mon1 = new pokemon(val)
+    if (isNaN(val)){
+        mon1 = new pokemon(val,10)
         dexEntry1 = Dex.species.get(mon1.nm);
         const team1 = createTeam(mon1,dexEntry1);
         // AI will have to send me what pokemon they chose
         ////////////////////////////////////////////
-        mon2 = mon1;
+        mon2 = new pokemon(val,12);
+        mon2.lv = 12;
         dexEntry2 = Dex.species.get(mon2.nm);
         const team2 = createTeam(mon2,dexEntry2);
         /////////////////////////////////////////////////////////////
@@ -245,21 +249,24 @@ app.post('/', async function (req, res) {
         opposingPokemon = await Canvas.loadImage('https://play.pokemonshowdown.com/sprites/gen5/'+mon2.nm+'.png');
         healthBar = await Canvas.loadImage('./images/healthbar.png');
 
+        // Create Field
+        const background = await Canvas.loadImage('./images/battle2.png');
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(background, 0, 0, canvas.width, canvas.height);
+        newImage =canvas.toDataURL();
+
         mainStream.stream.write(`>start {"formatid":"anythinggoes"}`);
-        mainStream.stream.write(`>player p1 {"name":"Your","team":"${team1}"}`);
+        mainStream.stream.write(`>player p1 {"name":"You","team":"${team1}"}`);
         mainStream.stream.write(`>player p2 {"name":"Your Opponent","team":"${team2}"}`);
         mainStream.stream.write(`>p1 team 1\n`);
         mainStream.stream.write(`>p2 team 1\n`);
-        res.render('other',{move1:moves[val][0],move2:moves[val][1],move3:moves[val][2],move4:moves[val][3], inputUrl: './images/Battle2.png'});
+        res.render('other',{move1:moves[val][0],move2:moves[val][1],move3:moves[val][2],move4:moves[val][3], inputUrl: newImage});
     }
     else{
         mainStream.stream.write(`>p1 move ${parseInt(val)}`);
         const AImove = await decideMove(val);
-        console.log(AImove);
         mainStream.stream.write(`>p2 move ${AImove}`);
-        console.log("message:"+message);
-        res.render('other',{move1:moves[mon1.nm][0],move2:moves[mon1.nm][1],move3:moves[mon1.nm][2],move4:moves[mon1.nm][3],output: message,inputUrl: newImage});
-        message = "";
+        res.render('other',{move1:moves[mon1.nm][0],move2:moves[mon1.nm][1],move3:moves[mon1.nm][2],move4:moves[mon1.nm][3],output: mainStream.getOutput(),inputUrl: newImage});
     }
 })
 
@@ -268,10 +275,10 @@ app.listen(port, ()=> console.log('The server running on Port ' +port));
 // Create user's pokemon and store it globally
 class pokemon {
 
-    constructor(name){
+    constructor(name,level){
         this.nm = name;                 // Set name as field
         this.IV = [31,31,31,31,31,31];  // Max out those IVS
-        this.lv = 10;                   // Set default level to 10
+        this.lv = level;                   // Set level
 
         this.mv = moves[name];          // Set default moves
         // Get db info to apply best stat distribution
@@ -286,17 +293,6 @@ class pokemon {
         this.g = dexEntry.gender || "M";    // Set gender to default gender or set default gender to Male
         this.h = 250        // Max happiness :)
     }
-}
-
-// Call this function when choosing 
-function choosePokemon()
-{   let name = "bulbasaur";
-    userPokemon = new pokemon(name);
-    const starterChoices = userList.querySelectorAll("#starterButton");
-
-    starterChoices.forEach(function(button) {
-        button.disabled = true
-    });
 }
 
 /** Draw the battle with updates 
